@@ -96,7 +96,7 @@
             <button class="tab active" onclick="switchTab('crear')"><i class="fas fa-plus"></i> Crear</button>
             <button class="tab" onclick="switchTab('lista')"><i class="fas fa-list"></i> Mis reportes</button>
             <button class="tab" onclick="switchTab('mapa')"><i class="fas fa-map"></i> Mapa</button>
-            <button class="tab" onclick="switchTab('compartir')"><i class="fas fa-share-alt"></i> Compartir datos</button>
+            <button class="tab" onclick="switchTab('compartir')"><i class="fas fa-share-alt"></i> Compartir</button>
         </div>
 
         <div id="alert"></div>
@@ -198,8 +198,8 @@
                 <div class="step">
                     <span class="step-num">1</span>
                     <div class="step-text">
-                        <strong>Exporta tus datos en JSON</strong>
-                        <button class="primary" onclick="exportJSON()" style="display: block; width: 100%; margin-top: 0.5rem;">Descargar JSON</button>
+                        <strong>Selecciona y exporta tus datos en JSON</strong>
+                        <button class="primary" onclick="openShareModal()" style="display: block; width: 100%; margin-top: 0.5rem;">Compartir</button>
                     </div>
                 </div>
 
@@ -238,6 +238,22 @@
                     <button class="danger" onclick="clearAll()" style="width: 100%;">🗑️ Limpiar todo</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL COMPARTIR -->
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                Selecciona incidencias para compartir
+                <button class="close-btn" onclick="closeShareModal()">&times;</button>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <button class="primary" onclick="selectAllToShare()" style="width: 100%; margin-bottom: 0.5rem;">✓ Seleccionar todas</button>
+                <button style="width: 100%;" onclick="deselectAllToShare()">✗ Deseleccionar todas</button>
+            </div>
+            <div id="shareCheckboxes" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;"></div>
+            <button class="primary" onclick="exportSelectedJSON()" style="width: 100%; padding: 1rem;">📥 Descargar JSON seleccionadas</button>
         </div>
     </div>
 
@@ -536,15 +552,57 @@
             document.getElementById('pendingCount').textContent = incidents.filter(i => i.execution === 'pendiente').length;
         }
 
-        function exportJSON() {
-            const json = JSON.stringify(incidents, null, 2);
+        function openShareModal() {
+            const checkboxesDiv = document.getElementById('shareCheckboxes');
+            if (incidents.length === 0) {
+                showAlert('No hay incidencias para compartir', 'error');
+                return;
+            }
+            
+            checkboxesDiv.innerHTML = incidents.map(inc => `
+                <div style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+                    <input type="checkbox" id="share-${inc.id}" class="incident-checkbox" value="${inc.id}" checked style="margin-right: 1rem;">
+                    <label for="share-${inc.id}" style="flex: 1; cursor: pointer; margin: 0;">
+                        <strong>#${inc.id}</strong> - ${inc.userName || 'Usuario'}<br>
+                        <small>${inc.observations || '(sin descripción)'}</small>
+                    </label>
+                </div>
+            `).join('');
+            
+            document.getElementById('shareModal').classList.add('active');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.remove('active');
+        }
+
+        function selectAllToShare() {
+            document.querySelectorAll('.incident-checkbox').forEach(cb => cb.checked = true);
+        }
+
+        function deselectAllToShare() {
+            document.querySelectorAll('.incident-checkbox').forEach(cb => cb.checked = false);
+        }
+
+        function exportSelectedJSON() {
+            const selected = Array.from(document.querySelectorAll('.incident-checkbox:checked'))
+                .map(cb => parseInt(cb.value));
+            
+            if (selected.length === 0) {
+                showAlert('Selecciona al menos una incidencia', 'error');
+                return;
+            }
+            
+            const selectedIncidents = incidents.filter(inc => selected.includes(inc.id));
+            const json = JSON.stringify(selectedIncidents, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = `incidencias-cendea-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
-            showAlert('✓ Archivo descargado', 'success');
+            closeShareModal();
+            showAlert(`✓ ${selected.length} incidencia(s) descargada(s)`, 'success');
         }
 
         function handleFileLoad(e) {
